@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RepoCorrector | AST Analyzer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background-color: #f4f7f6; color: #333; }
+        .upload-card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
+        .result-block { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 5px; margin-top: 20px; overflow-x: auto; border-left: 5px solid #e06c75; }
+        button { background-color: #61dafb; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #4fa8c7; }
+        pre { margin: 0; }
+    </style>
+</head>
+
+<body>
+
+<div class="upload-card">
+    <h2>🚀 RepoCorrector</h2>
+    <p>Upload your React <code>.jsx</code> or <code>.js</code> file to detect messy API logic using AST parsing.</p>
+
+    <form action="/analyze" method="POST" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <hr>
+        <button type="submit">Analyze with AST</button>
+    </form>
+</div>
+
+{% if blocks %}
+    <div style="max-width: 800px; margin: 40px auto;">
+        <h3>⚠️ Detected Messy Code Blocks</h3>
+        <p>The following functions were found to contain <code>fetch()</code> calls mixed with UI/Logic and should be moved to a service layer:</p>
+
+        {% for block in blocks %}
+            <div class="result-block">
+                <pre><code>{{ block }}</code></pre>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+</body>
+</html>

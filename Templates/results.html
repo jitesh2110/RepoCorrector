@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RepoCorrector | Analysis Results</title>
+    <style>
+        body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f0f2f5; padding: 40px; color: #1a1a1a; }
+        .container { max-width: 1000px; margin: auto; }
+        h1 { text-align: center; color: #2d3436; }
+        
+        .report-card { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 25px; 
+            margin-bottom: 30px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border-left: 8px solid #dfe6e9;
+        }
+
+        /* Severity Colors */
+        .severity-Critical { border-left-color: #ff7675; }
+        .severity-High { border-left-color: #fdcb6e; }
+        .severity-Medium { border-left-color: #74b9ff; }
+
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        
+        .badge-container { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge { 
+            background: #f1f2f6; 
+            padding: 5px 12px; 
+            border-radius: 20px; 
+            font-size: 0.85rem; 
+            font-weight: 600;
+            color: #2f3542;
+            border: 1px solid #ced4da;
+        }
+
+        .severity-tag {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .severity-Critical .severity-tag { background: #ffeaa7; color: #d63031; }
+        .severity-High .severity-tag { background: #fff4e1; color: #e67e22; }
+        .severity-Medium .severity-tag { background: #e3f2fd; color: #0984e3; }
+
+        .metrics-grid { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 10px; 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 0.9rem;
+        }
+        .metric-item b { color: #636e72; display: block; font-size: 0.75rem; text-transform: uppercase; }
+
+        pre { 
+            background: #2d3436; 
+            color: #fab1a0; 
+            padding: 20px; 
+            border-radius: 8px; 
+            overflow-x: auto; 
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .back-btn { display: inline-block; margin-top: 20px; text-decoration: none; color: #0984e3; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔍 RepoCorrector Analysis</h1>
+    <p style="text-align: center;">Found <b>{{ reports|length }}</b> problematic function blocks.</p>
+
+    {% for report in reports %}
+    <div class="report-card severity-{{ report.severity }}">
+        <div class="header-flex">
+            <div class="badge-container">
+                {% for issue in report.issues %}
+                    <span class="badge">⚠️ {{ issue }}</span>
+                {% endfor %}
+            </div>
+            <span class="severity-tag">{{ report.severity }} Severity</span>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-item"><b>State Hooks</b> {{ report.metrics.state_hooks }}</div>
+            <div class="metric-item"><b>API Calls</b> {{ report.metrics.api_calls }}</div>
+            <div class="metric-item"><b>Effect Hooks</b> {{ report.metrics.effects }}</div>
+            <div class="metric-item"><b>JSX Depth</b> {{ report.metrics.nesting_depth }}</div>
+        </div>
+
+        <pre><code>{{ report.code }}</code></pre>
+    </div>
+    {% endfor %}
+
+    <a href="/" class="back-btn">← Upload another file</a>
+</div>
+
+</body>
+</html>
