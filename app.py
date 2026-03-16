@@ -1,11 +1,12 @@
 import os
+import textwrap
 from flask import Flask, render_template, request
 from tree_sitter import Language, Parser
 import tree_sitter_javascript as ts_js
 
 app = Flask(__name__)
 
-# Initialize Tree-sitter for JavaScript/JSX
+# Initialize Tree-sitter
 JS_LANGUAGE = Language(ts_js.language())
 parser = Parser(JS_LANGUAGE)
 
@@ -17,97 +18,141 @@ class RepoAnalyzer:
         self.reports = []
 
     def scan_file(self):
-        """Initial entry point to walk the tree."""
         self._walk_node(self.tree.root_node)
         return self.reports
 
     def _walk_node(self, node):
-        """Recursively search for function/component containers."""
-        # Focus on top-level structures that hold logic
-        function_types = [
-            'function_declaration',
-            'arrow_function',
-            'variable_declarator',
-            'method_definition'
-        ]
+        # Anchor point: We search for component-like structures
+        top_level_types = ['class_declaration', 'function_declaration', 'variable_declarator', 'method_definition']
 
-        if node.type in function_types:
-            report = self.analyze_function_health(node)
-            # Only report if at least one "messy" issue is found
-            if report['issues']:
-                self.reports.append(report)
-                # After flagging a container, don't look inside it for more
-                # This prevents duplicate sub-function reporting
-                return
+        if node.type in top_level_types:
+            node_text = self.get_text(node)
+            # Heuristic to identify a React Component
+            if any(marker in node_text for marker in ['<', 'useState', 'useEffect', 'useReducer', 'return']):
+                report = self.analyze_function_health(node)
+                if report['issues']:
+                    self.reports.append(report)
+                    # Once a component is analyzed, we don't need to scan its children for more components
+                    return
 
         for child in node.children:
             self._walk_node(child)
 
     def analyze_function_health(self, node):
-        """The core engine that checks for 4 types of messy code."""
         issues = []
+        candidates = []
+        node_text = self.get_text(node)
+        seen_ranges = []
 
-        # 1. CATEGORY: Data Coupling (API calls)
-        api_count = self.count_identifiers(node, ['fetch', 'axios'])
-        if api_count > 0:
-            issues.append("Data Coupling")
+        # PRE-FETCH ALL CALLS (Used for multiple checks)
+        all_calls = self.find_nodes_by_type(node, 'call_expression')
 
-        # 2. CATEGORY: State Bloat (Too many useStates)
-        state_count = self.count_identifiers(node, ['useState'])
-        if state_count > 4:
+        # --- SECTOR 1: NETWORK COUPLING (Surgical) ---
+        network_keywords = ['Axios.', 'axios.', 'fetch(', 'http', 'api/']
+        for call in all_calls:
+            call_text = self.get_text(call)
+            if any(k in call_text for k in network_keywords):
+                if not any(call.start_byte >= s and call.end_byte <= e for s, e in seen_ranges):
+                    issues.append("Data Coupling")
+                    candidates.append({
+                        "type": "Network Island (Surgical)",
+                        "reason": "Direct API logic found in UI. Decouple into a service or custom hook.",
+                        "snippet": self.clean_snippet(call_text)
+                    })
+                    seen_ranges.append((call.start_byte, call.end_byte))
+
+        # --- SECTOR 2: STATE BLOAT (AST Counting) ---
+        # We count actual Hook calls, not just strings in comments
+        hook_count = sum(1 for c in all_calls if 'useState' in self.get_text(c))
+        reducer_count = sum(1 for c in all_calls if 'useReducer' in self.get_text(c))
+        legacy_count = node_text.count('this.setState')
+
+        total_state_signals = hook_count + reducer_count + legacy_count
+        if total_state_signals > 5:
             issues.append("State Bloat")
+            candidates.append({
+                "type": "State Management",
+                "reason": f"Managing {total_state_signals} state signals. This exceeds the recommended complexity for a single component.",
+                "snippet": f"Structural Issue: {total_state_signals} state signals detected."
+            })
 
-        # 3. CATEGORY: Effect Tangle (Too many useEffects)
-        effect_count = self.count_identifiers(node, ['useEffect'])
-        if effect_count > 2:
-            issues.append("Effect Tangle")
+        # --- SECTOR 3: LOGIC LEAK (Data Transformation) ---
+        # Detect if the component is doing heavy data processing (filter/sort/reduce) inside the body
+        transform_logic = [c for c in all_calls if any(x in self.get_text(c) for x in ['.filter', '.sort', '.reduce'])]
+        if len(transform_logic) >= 2:  # Multiple transformations usually mean a leak
+            issues.append("Logic Leak")
+            leak_sample = self.get_text(transform_logic[0])
+            candidates.append({
+                "type": "Data Transformation",
+                "reason": "Complex data processing found in render path. Move this logic to a Selector or Memoized Utility.",
+                "snippet": self.clean_snippet(leak_sample)
+            })
 
-        # 4. CATEGORY: Deep Nesting (JSX Depth)
-        max_nesting = self.get_max_jsx_depth(node, 0)
-        if max_nesting >= 5:
-            issues.append("Deep Nesting")
+        # --- SECTOR 4: SUB-COMPONENT CANDIDATES (JSX Bloat) ---
+        # Check for large .map() blocks that render complex UI
+        for call in all_calls:
+            call_text = self.get_text(call)
+            if '.map' in call_text:
+                line_count = call.end_point[0] - call.start_point[0]
+                if line_count > 15:  # An iteration block longer than 15 lines is a component
+                    issues.append("Sub-component Extraction")
+                    candidates.append({
+                        "type": "Sub-component Extraction",
+                        "reason": f"Large mapping block ({line_count} lines). Extract the item renderer into its own component.",
+                        "snippet": self.clean_snippet(call_text[:200] + "...")  # Snippet shortened for UI
+                    })
 
-        # Determine Severity based on issue count
-        severity = "Low"
-        if len(issues) >= 3:
-            severity = "Critical"
-        elif len(issues) >= 2:
-            severity = "High"
-        elif len(issues) == 1:
-            severity = "Medium"
+        # Final Severity Score
+        unique_issues = list(set(issues))
+        severity = "Critical" if len(unique_issues) >= 3 else "High" if len(unique_issues) >= 2 else "Medium"
 
         return {
-            "code": self.source_bytes[node.start_byte:node.end_byte].decode('utf8'),
-            "issues": issues,
+            "name": self.get_node_name(node),
+            "full_code": node_text,
+            "issues": unique_issues,
             "severity": severity,
-            "metrics": {
-                "api_calls": api_count,
-                "state_hooks": state_count,
-                "effects": effect_count,
-                "nesting_depth": max_nesting
-            }
+            "candidates": candidates
         }
 
-    def count_identifiers(self, node, targets):
-        """Helper to count occurrences of specific hooks/libraries."""
-        count = 0
-        if node.type == 'identifier':
-            name = self.source_bytes[node.start_byte:node.end_byte].decode('utf8')
-            if name in targets:
-                return 1
-        for child in node.children:
-            count += self.count_identifiers(child, targets)
-        return count
+    # --- HELPERS ---
+    def clean_snippet(self, text):
+        """Fixes indentation for display in the results UI."""
+        return textwrap.dedent(text).strip()
 
-    def get_max_jsx_depth(self, node, current_depth):
-        """Calculates the deepest level of JSX nesting."""
-        if node.type in ['jsx_element', 'jsx_self_closing_element']:
+    def get_node_name(self, node):
+        text = self.get_text(node)
+        try:
+            if "const" in text: return text.split("const")[1].split("=")[0].strip()
+            if "class" in text: return text.split("class")[1].split("{")[0].strip()
+            if "function" in text: return text.split("function")[1].split("(")[0].strip()
+        except:
+            pass
+        return "React Component"
+
+    def find_nodes_by_type(self, node, node_type):
+        results = []
+
+        def traverse(n):
+            if n.type == node_type: results.append(n)
+            for child in n.children: traverse(child)
+
+        traverse(node)
+        return results
+
+    def find_complex_deep_jsx(self, node, threshold, current_depth=0):
+        # Recursive depth check for JSX elements
+        results = []
+        if node.type in ['jsx_element', 'jsx_expression_container']:
             current_depth += 1
-
-        max_d = current_depth
+            if current_depth >= threshold:
+                if any(x in self.get_text(node) for x in ['.map', 'onClick', '<button']):
+                    return [node]
         for child in node.children:
-            max_d = max(max_d, self.get_max_jsx_depth(child, current_depth))
-        return max_d
+            results.extend(self.find_complex_deep_jsx(child, threshold, current_depth))
+        return results
+
+    def get_text(self, node):
+        return self.source_bytes[node.start_byte:node.end_byte].decode('utf8')
 
 
 @app.route('/')
@@ -119,19 +164,11 @@ def index():
 def analyze():
     if 'file' not in request.files:
         return "No file uploaded", 400
-
     file = request.files['file']
     source_code = file.read().decode('utf-8')
-
-    # Execute Modern Analysis
-    analyzer = RepoAnalyzer(source_code)
-    reports = analyzer.scan_file()
-
-    # We send 'reports' to the template instead of just 'blocks'
-    return render_template('results.html', reports=reports)
+    reports = RepoAnalyzer(source_code).scan_file()
+    return render_template('results.html', reports=reports, clean=(len(reports) == 0))
 
 
 if __name__ == '__main__':
-    if not os.path.exists('templates'):
-        os.makedirs('templates')
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
