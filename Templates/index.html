@@ -1,42 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>RepoCorrector | AST Analyzer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RepoAnalyzer | Project-Scale AST Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background-color: #f4f7f6; color: #333; }
-        .upload-card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
-        .result-block { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 5px; margin-top: 20px; overflow-x: auto; border-left: 5px solid #e06c75; }
-        button { background-color: #61dafb; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #4fa8c7; }
-        pre { margin: 0; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .bg-gradient {
+            background: radial-gradient(circle at top right, #4f46e5, #1e1b4b);
+        }
     </style>
 </head>
+<body class="bg-gradient min-h-screen font-sans text-slate-900">
 
-<body>
+    <div class="max-w-4xl mx-auto pt-20 px-6">
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-extrabold text-white tracking-tight mb-4">
+                RepoAnalyzer <span class="text-indigo-400">Pro</span>
+            </h1>
+            <p class="text-indigo-200 text-lg">
+                Advanced AST-based architectural analysis for React codebases.
+            </p>
+        </div>
 
-<div class="upload-card">
-    <h2>🚀 RepoCorrector</h2>
-    <p>Upload your React <code>.jsx</code> or <code>.js</code> file to detect messy API logic using AST parsing.</p>
-
-    <form action="/analyze" method="POST" enctype="multipart/form-data">
-        <input type="file" name="file" required>
-        <hr>
-        <button type="submit">Analyze with AST</button>
-    </form>
-</div>
-
-{% if blocks %}
-    <div style="max-width: 800px; margin: 40px auto;">
-        <h3>⚠️ Detected Messy Code Blocks</h3>
-        <p>The following functions were found to contain <code>fetch()</code> calls mixed with UI/Logic and should be moved to a service layer:</p>
-
-        {% for block in blocks %}
-            <div class="result-block">
-                <pre><code>{{ block }}</code></pre>
+        <div class="glass-card rounded-3xl p-8 shadow-2xl">
+            <div class="flex items-center gap-4 mb-8">
+                <div class="bg-indigo-100 p-3 rounded-2xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold">Upload Source</h2>
+                    <p class="text-slate-500 text-sm">Upload a single <b>.js/.jsx</b> file or a full <b>.zip</b> project.</p>
+                </div>
             </div>
-        {% endfor %}
-    </div>
-{% endif %}
 
+            <form action="/analyze" method="POST" enctype="multipart/form-data" class="space-y-6">
+                <div class="border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-slate-50/50">
+                    <input type="file" name="file" id="fileInput" class="hidden" required onchange="updateFileName()">
+                    <label for="fileInput" class="cursor-pointer">
+                        <span id="fileName" class="text-slate-600 font-medium">Click to browse or drag and drop</span>
+                        <p class="text-xs text-slate-400 mt-2">ZIP, JS, or JSX (Max 50MB)</p>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 text-sm text-slate-600">
+                    <div class="flex items-center gap-2">
+                        <span class="text-green-500">✔</span> Tree-sitter AST Parsing
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-green-500">✔</span> Multi-file Dependency Mapping
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-green-500">✔</span> State Bloat Detection
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-green-500">✔</span> Logic Leak Analysis
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transform hover:-translate-y-1 transition-all shadow-lg">
+                    Run Project Analysis
+                </button>
+            </form>
+        </div>
+
+        <p class="text-center text-indigo-300/50 mt-8 text-sm">
+            Powered by Python, Flask, and Tree-sitter Engine.
+        </p>
+    </div>
+
+    <script>
+        function updateFileName() {
+            const input = document.getElementById('fileInput');
+            const fileNameDisplay = document.getElementById('fileName');
+            if (input.files.length > 0) {
+                fileNameDisplay.innerText = "Selected: " + input.files[0].name;
+                fileNameDisplay.classList.add('text-indigo-600');
+            }
+        }
+    </script>
 </body>
 </html>

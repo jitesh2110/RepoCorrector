@@ -1,39 +1,85 @@
-{% for report in reports %}
-<div class="report-card severity-{{ report.severity }}">
-    <div class="header">
-        <span class="severity-badge">{{ report.severity }} SEVERITY</span>
-        <h2>Component Analysis</h2>
-    </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RepoAnalyzer | Results</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .code-scroll::-webkit-scrollbar { height: 6px; }
+        .code-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 p-8">
 
-    <div class="split-view">
-        <div class="original-code">
-            <h4>Full Function Code</h4>
-            <pre><code>{{ report.full_code }}</code></pre>
-        </div>
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-10 flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-bold">Project Analysis Report</h1>
+                <p class="text-slate-500">Tree-sitter AST & Cross-File Intelligence</p>
+            </div>
+            <a href="/" class="text-indigo-600 font-semibold hover:underline">← Analyze Another</a>
+        </header>
 
-        <div class="suggestions">
-            <h4>✂️ Specific Refactor Candidates</h4>
-            {% for candidate in report.candidates %}
-                <div class="candidate-box">
-                    <span class="type-tag">{{ candidate.type }}</span>
-                    <p>{{ candidate.reason }}</p>
-                    {% if candidate.snippet != "N/A - Structural Issue" %}
-                        <pre class="snippet"><code>{{ candidate.snippet }}</code></pre>
-                    {% endif %}
+        {% if clean %}
+            <div class="bg-white p-10 rounded-2xl shadow-sm text-center border-2 border-dashed">
+                <p class="text-xl text-slate-400">No issues found in the uploaded files. Project is clean! ✨</p>
+            </div>
+        {% else %}
+
+            {% for file in reports %}
+                <div class="mb-12">
+                    <div class="flex items-center gap-4 mb-4">
+                        <span class="bg-slate-800 text-white px-3 py-1 rounded-md font-mono text-sm">{{ file.path }}</span>
+                        <div class="h-px flex-grow bg-slate-200"></div>
+                    </div>
+
+                    {% for report in file.reports %}
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-4 overflow-hidden">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold">{{ report.name }}</h3>
+                                    <span class="text-xs font-bold uppercase tracking-widest
+                                        {% if report.severity == 'Critical' %}text-red-500{% elif report.severity == 'High' %}text-orange-500{% else %}text-yellow-500{% endif %}">
+                                        {{ report.severity }} Priority
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                {% for candidate in report.candidates %}
+                                    <div class="bg-slate-50 p-4 rounded-lg border-l-4
+                                        {% if candidate.type == 'Unused Export' %}border-indigo-400{% else %}border-slate-300{% endif %}">
+
+                                        <div class="flex justify-between items-center mb-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm font-bold text-slate-700">{{ candidate.type }}</span>
+                                                {% if candidate.type == "Unused Export" %}
+                                                    <span class="bg-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full uppercase">Pass 2: Optimization</span>
+                                                {% endif %}
+                                            </div>
+
+                                            {% if candidate.start_line %}
+                                            <span class="text-[10px] font-mono bg-slate-200 text-slate-600 px-2 py-0.5 rounded">
+                                                L{{ candidate.start_line }}{% if candidate.start_line != candidate.end_line %}-L{{ candidate.end_line }}{% endif %}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+
+                                        <p class="text-sm text-slate-600 mb-3">{{ candidate.reason }}</p>
+
+                                        <div class="relative group">
+                                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <pre class="bg-slate-900 text-slate-300 p-4 rounded text-xs overflow-x-auto code-scroll leading-relaxed border border-slate-800 shadow-inner"><code>{{ candidate.snippet }}</code></pre>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
                 </div>
             {% endfor %}
-        </div>
+        {% endif %}
     </div>
-</div>
-{% endfor %}
 
-<style>
-    .split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .candidate-box {
-        background: #fff9db; border: 1px dashed #fab005;
-        padding: 15px; border-radius: 8px; margin-bottom: 15px;
-    }
-    .type-tag { font-weight: bold; color: #e67e22; font-size: 0.8rem; }
-    .snippet { background: #f1f3f5 !important; color: #495057 !important; border: 1px solid #dee2e6; }
-    pre { padding: 10px; border-radius: 4px; background: #212529; color: #f8f9fa; overflow: auto; max-height: 300px; }
-</style>
+</body>
+</html>
